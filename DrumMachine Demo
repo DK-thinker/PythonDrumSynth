@@ -1,0 +1,48 @@
+from cmu_graphics import *
+
+def onAppStart(app):
+    app.width, app.height = 1280, 720
+    initializeSequences(app)
+    
+def initializeSequences(app):
+    app.sequences = {
+    'kick' : [i for i in range(16)],
+    'snare' : [i for i in range(16)],
+    'HHC' : [i for i in range(16)],
+    'HHO' : [i for i in range(16)],
+    'ride' : [i for i in range(16)],
+    'crash' : [i for i in range(16)]
+    }
+    
+
+def redrawAll(app):
+    drawRect(0, 0, app.width, app.height, fill='slateGray')
+    drawLabel('DKTheThinker Drum Machine', app.width//2, 20, 
+              size=30, fill='purple')
+    drawSequencer(app)
+
+def drawSequencer(app):
+    cellSpacing = 20
+    cellXDim, cellYDim = 40, 80
+    OGy = app.height//2 - (len(app.sequences)/2) * (cellYDim+cellSpacing)
+    OGx = app.width//2 - 8 * (cellXDim+cellSpacing)
+    x, y = OGx, OGy
+    for sequence in app.sequences:
+        x = OGx
+        drawLabel(sequence, x-cellSpacing, y+cellYDim//2, 
+                  fill='purple', align='right', size=20)
+        for cell in app.sequences[sequence]:
+            drawRect(x, y, cellXDim, cellYDim, fill='black')
+            x += cellXDim + cellSpacing
+        y += cellYDim + cellSpacing
+
+def onMousePress(app, mouseX, mouseY):
+    pass
+
+
+
+
+def main():
+    runApp()
+  
+main()
