@@ -1,17 +1,7 @@
 ### Oscillator 2.0 ###
 
-
-''' Overall Design:
-Create int arrays of each sample wav and add to dictionary.
-On each step of the sequencer, check what samples are on and sum them
-then write the summed data to the speaker.
-
-
-Envelope Design:
-given the wave data array, create an amplitude array and multiply the two.
-the post-envelope array will be the one added to the sample dict.
-
 ## CITATIONS ##
+'''
 Used Ideas from https://plainenglish.io/blog/making-a-synth-with-python-oscillators-2cb8e68e9c3b, 
     #https://github.com/18alantom/synth/blob/main/Code%20Oscillators.ipynb 
     Both of the above are from the same guy, 'Alan'
@@ -19,84 +9,30 @@ Used Ideas from https://plainenglish.io/blog/making-a-synth-with-python-oscillat
 Referecend https://antreith.wordpress.com/2018/05/12/elementary-signal-generation-with-python/ 
     and https://www.brownnoiseradio.com/resources/generating-white-noise-in-python%3A-a-step-by-step-guide
     For wave and white noise generation
-
-
-
 '''
 
-from cmu_graphics import *
 import numpy as np
 import pyaudio 
-import itertools
+from threading import Thread
 from scipy import signal as sg
 import math
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 #### BIG TOP DOWN DESIGN ####
-'''
-@TODO look at threading and see where it can be applied
-
-Create windows for sample manipulation, sequencing/mixing(vol knob).
-
-Each window must update appropriate values 
-
-    Sample Manipulation Window:
-
-        Should update values of the DrumSynth sub-class, generate the wave 
-        and add the finalized sample to app.sampleDictionary
-
-    Sequencer Window:
-
-        -Button of drum type must open the corresponding sample manipulation
-        window. (Must make a button type for this)
-        -Sequencer (buttons again) modifies app.sequences or whatever
-        -Play/pause button
-            This will cause the audio to be compiled into buffers, 
-            ideally you can have samples longer than a cell, so you must
-            implement a buffer
-         * Tangental ideas for the buffer:
-            Key is for the sequence to be editable as it is playing, 
-            so generating a byte array with length of all 16 steps
-            won't work
-        -volume knob
-
-
-
-'''
-
 
 pa = pyaudio.PyAudio()
 sampleRate = 44100
-
-stream = pa.open(output=True,
-                channels=1,
-                rate=44100,
-                format=pyaudio.paInt16,
-                frames_per_buffer=256,
-                )
-    
-def  getLengthOfOneCell(app):
-    #16 cells in total,
-    secondsOfBeat = (60/app.bpm) #gets seconds per beat
-    samplesOfBeat = secondsOfBeat * sampleRate
-    app.cellLength = 44100
-   
-def onAppStart(app):
-    app.bpm = 60
-    getLengthOfOneCell(app)
-    app.samples = {}    #dict of {sampleName : 16bit array}. will update whenever a sound is changed
     
 class Oscillator:
-
-# maybe switch app.cellLength for a length, which can allow for longer sample generation.
-# Sample lengths longer than the app.cellLength can be introduced with a buffer
-# cueing proccess later on.
 
     def __init__(self, paramaters):   #Paramaters is {length, freq, amp, wavetype}
         self.length = paramaters['length'] #In samples
         self.freq = paramaters['freq']
         self.amp = paramaters['amp']
         self.wave = paramaters['wavetype']
+        if self.wave not in {'sine', 'triangle', 'sawtooth', 'square',
+                             'whiteNoise'}:
+            raise Exception('Spell your waveType correctly')
         self.period = (2 * math.pi * self.freq) / sampleRate
 
     def sineGenerator(self, x):
@@ -111,7 +47,6 @@ class Oscillator:
     def sawtoothGenerator(self, x):
         return self.amp * sg.sawtooth(self.period*x)
     
-
     def generateWaveArray(self):
         oscArray = np.empty(int(self.length))
 
@@ -152,26 +87,22 @@ class DrumSynth:
         
     def ampModulation(self):
         wave = self.waveAdder()
-        print('wave',wave)
-        env = ADSREnvelope.generateEnvArray(self.envelope)
-        return np.multiply(wave, env)
+        env = self.envelope.generateEnvArray()
+        modedWave = np.multiply(wave, env)
+        return modedWave
     
-    def getSamples(self):            #From Alan / Maybe move this out of the class
+    def getSamples(self):            #From Alan
         wave = self.ampModulation()
-        print('ModWave', wave)
-        x = np.arange(len(wave))
-        y = wave
-        plt.xlabel('sample(n)')
-        plt.ylabel('voltage(V)')
-        plt.show()
-        # print(wave)
-        return [int((wave[i]) * 32767) for i in range(len(wave))]
+        sample = [int((wave[i]) * 32767) for i in range(len(wave))]
+        return np.int16(sample).tobytes()
     
 
-class ADSREnvelope:
+class ADSR:
 
     # Must pass in attack and decay values such that (a+d+s+r) <= 1
     def __init__(self, length, attack, decay, sustainLength, sustainLevel, release):
+        if attack+decay+sustainLength+release > 1:
+            raise Exception('ADSR lengths must sum to <= 1')
         self.envelopeLength = length
         self.aLengthInSamples = math.floor(self.envelopeLength * attack)
         self.dLengthInSamples = math.floor(self.envelopeLength * decay)
@@ -186,7 +117,8 @@ class ADSREnvelope:
         return ((1* x) /self.dLengthInSamples) + 1
     
     def generateReleaseVals(self, x):
-        return (-(self.sustainLevel * x) / self.rLengthInSamples) + self.sLengthInSamples
+        return (-(self.sustainLevel * x) / self.rLengthInSamples
+                 + self.sLengthInSamples)
 
     def generateEnvArray(self):
         
@@ -209,33 +141,39 @@ class ADSREnvelope:
                 slope = (-self.sustainLevel) / self.rLengthInSamples
                 ampVal = (x - sustainEnd) * slope + self.sustainLevel
             envArray[x] = ampVal
- 
-        # x = np.arange(app.cellLength)
-        # y = envArray
-        # plt.plot(x, y)
-        # plt.xlabel('time')
-        # plt.ylabel('amp')
-        # plt.show()
-        # print(envArray)
         return envArray
-        
-
-def onKeyPress(app, key):
-    if key == 'p':
-        kickParamaters = [{'length':22050, 'freq':80, 'amp':1, 'wavetype':'sawtooth'},
-                          {'length':22050, 'freq':60, 'amp':1, 'wavetype':'sine'}]
-        kickEnvelope = ADSREnvelope(length=22050, attack=.01, decay=.3,
-                                     sustainLength=.3, sustainLevel=.2, release=.3)        
-        kick = DrumSynth(kickParamaters, kickEnvelope)
-        kickSample = kick.getSamples()
-        kick = np.int16(kickSample).tobytes()
-        stream.write(kick)
-        # stream.close()
-
-def main():
-    runApp()
-    # openAudioStream()
-    # print(pa.get_host_api_info_by_index())
     
+class Sequencer:
+    bpm = 130
 
-main()
+    def initSeqStream(self):
+        self.stream = pa.open(output=True,
+                    channels=1,
+                    rate=sampleRate,
+                    format=pyaudio.paInt16,
+                    frames_per_buffer=256,
+                    )
+
+    def __init__(self, sequence, sample):
+        self.initSeqStream()
+        self.sequence = sequence
+        self.sample = sample
+
+        #16 bit byte array is 2x the length of samples
+        self.sampleLength = len(sample) // 2 
+
+        self.playing = False
+        self.openThread()
+        
+    def openThread(self):
+        self.thread = Thread(target=self.writeToStream, daemon=True)
+        self.thread.start()
+        
+    def handleStep(self, i):
+        if self.sequence[i] == 1:
+            if self.stream.is_stopped():
+                self.stream.start_stream()
+            self.writeToStream()
+    
+    def writeToStream(self):
+            self.stream.write(self.sample)
