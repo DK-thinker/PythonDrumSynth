@@ -5,7 +5,7 @@ import pyaudio
 import numpy as np
 from cmu_graphics import *
 
-sampleRate = 44100
+sampleRate = 44100.0
 pa = pyaudio.PyAudio()
 
 '''
@@ -35,32 +35,90 @@ def initializeSamples(app):
         kickLength = app.lengthOfCell
         app.kickFreq = 60
         app.kickAmp = 1   #int <= 1
-        app.waveType = 'sine' #String
+        app.kickWaveType = 'sine' #String
         app.kickA = 0.1
         app.kickD = .2
-        app.kickSusLength = .3
-        app.kickSusLevel = .5
+        app.kickSusLen = .3
+        app.kickSusLev = .5
         app.kickR = .2
+        app.kick_dB = 0
         kick = DrumSynth([{'length':kickLength, 'freq': app.kickFreq,
-                           'amp':app.kickAmp, 'wavetype':app.waveType}],
+                           'amp':app.kickAmp, 'wavetype':app.kickWaveType}],
                         ADSR(length=kickLength, attack=app.kickA, 
-                             decay=app.kickD, sustainLength=app.kickSusLength,
-                             sustainLevel=app.kickSusLevel, release=app.kickR
-                        ))
+                             decay=app.kickD, sustainLength=app.kickSusLen,
+                             sustainLevel=app.kickSusLev, release=app.kickR),
+                        dB=app.kick_dB)
         return kick.getSamples()
     def setSnare():
-        snareLength = 5000
+        snareLength = app.lengthOfCell
+        app.snarePitchedFreq = 666
+        app.snarePitchedAmp = .7
+        app.snarePitchedWave = 'square'
+        app.snareNoiseAmp = .3
+        app.snareA = .1
+        app.snareD = .3
+        app.snareSusLen = .4
+        app.snareSusLev = 1
+        app.snareR = .01
+        app.snare_dB = -3
+        app.snareFilter = 900.0
         snare = DrumSynth([
-            {'length':snareLength, 'freq':440, 'amp':.1,
-            'wavetype':'square'},
-            {'length':snareLength, 'freq':20, 'amp':.001,
+            {'length':snareLength, 'freq':app.snarePitchedFreq, 
+             'amp':app.snarePitchedAmp,
+            'wavetype':app.snarePitchedWave},
+            {'length':snareLength, 'freq':None, 'amp':app.snareNoiseAmp,
             'wavetype':'whiteNoise'}
             ], 
-            ADSR(length=snareLength, attack=.01, decay=.9, 
-                 sustainLength=0, sustainLevel=0, release=.01))
+            ADSR(length=snareLength, attack=app.snareA, decay=app.snareD, 
+                 sustainLength=app.snareSusLen, sustainLevel=app.snareSusLev,
+                 release=app.snareR),
+            filter=app.snareFilter,
+            dB=app.snare_dB)
         return snare.getSamples()
+    def setClHH():
+        clHHLength = app.lengthOfCell
+        app.clHHWavetype = 'whiteNoise'
+        app.clHHAmp = 1
+        app.clHHA = .01
+        app.clHHD = .1
+        app.clHHSusLen = .1
+        app.clHHSusLevel = .8
+        app.clHHR = .1
+        app.clHHFilter = 14000
+        app.clHH_dB = -1
+        clHH = DrumSynth([{'length':clHHLength, 'freq':None, 'amp':app.clHHAmp,
+                           'wavetype':app.clHHWavetype}],
+                           ADSR(length=clHHLength, attack=app.clHHA,
+                                decay=app.clHHD, sustainLength=app.clHHSusLen,
+                                sustainLevel=app.clHHSusLevel,
+                                release=app.clHHR),
+                            filter=app.clHHFilter,
+                            dB=app.clHH_dB)
+        return clHH.getSamples()
+    def setOHH():
+        oHHLength = app.lengthOfCell
+        app.oHHWavetype = 'whiteNoise'
+        app.oHHAmp = 1
+        app.oHHA = .2
+        app.oHHD = .01
+        app.oHHSusLen = .7
+        app.oHHSusLev = .9
+        app.oHHR = .01
+        app.oHHFilter = 16000
+        app.oHH_dB = -1
+        oHH = DrumSynth([{'length':oHHLength,'freq':None, 'amp':app.oHHAmp,
+                          'wavetype':app.oHHWavetype}],
+                          ADSR(length=oHHLength, attack=app.oHHA,
+                               decay=app.oHHD, sustainLength=app.oHHSusLen,
+                               sustainLevel=app.oHHSusLev, release=app.oHHR),
+                            filter=app.oHHFilter,
+                            dB=app.oHH_dB)
+        return oHH.getSamples()
+
     app.samples['kick'] = setKick()
     app.samples['snare'] = setSnare()
+    app.samples['clHH'] = setClHH()
+    app.samples['oHH'] = setOHH()
     
     
 ## SEQUENCER SCREEN ##
@@ -72,20 +130,23 @@ def sequencerScreen_onScreenActivate(app):
     loadSequencerBoard(app)
 
 def initializeSequences(app):
-    app.sequences = [[False]*16,
+    app.sequenceLists = [[False]*16,
                      [False]*16,
                      [False]*16,
                      [False]*16,
                      [False]*16,
                      [False]*16
                      ]
-    app.kickSequence = Sequencer(app.sequences[0], app.samples['kick'])
-    app.snareSequence = Sequencer(app.sequences[1], app.samples['snare'])
-
+    app.sequencer = {
+            'kick' : Sequencer(app.sequenceLists[0], app.samples['kick']),
+            'snare' : Sequencer(app.sequenceLists[1], app.samples['snare']),
+            'clHH' : Sequencer(app.sequenceLists[2], app.samples['clHH']),
+            'oHH' : Sequencer(app.sequenceLists[3], sample=app.samples['oHH'])
+                    }   
 def loadSequencerBoard(app):
     #initializes button objects for the sequencer
-    rows, cols = len(app.sequences), len(app.sequences[0])
-    buttonW, xSpacing= 40, 10
+    rows, cols = len(app.sequenceLists), len(app.sequenceLists[0])
+    buttonW, xSpacing= 40, 5
     buttonH, ySpacing = 80, 10
     OGcx, cy = (app.width//3) + buttonW//2 ,  (app.height//8) + buttonH//2
     for row in range(rows):
@@ -95,6 +156,9 @@ def loadSequencerBoard(app):
             currButton = Button(cx, cy, buttonW, buttonH, onColor='limeGreen',
                                 offColor='gainsboro')
             rowOfButtons += [currButton]
+            #group cells in groups of 4
+            if (col+1) % 4 == 0:
+                cx += xSpacing*2
             cx += xSpacing + buttonW
         Button.buttons += [rowOfButtons]
         cy += ySpacing + buttonH
@@ -105,16 +169,14 @@ def sequencerScreen_redrawAll(app):
     drawLabel('DKTheThinker DrumSynth', app.width/2, 20, font='monospace',
               fill='indigo', bold=True, size=30)
     drawSequencer(app)
-    drawPlayHead(app)
-
-def drawPlayHead(app):
-    pass
-
 
 def drawSequencer(app):
     for buttonRow in Button.buttons:
-        for button in buttonRow:
-            button.drawButton()
+        for buttonCol in range(len(buttonRow)):
+            if buttonCol == app.stepi and app.playing:
+                borderColor = 'red'
+            else: borderColor = 'black'
+            buttonRow[buttonCol].drawButton(borderFill=borderColor)
 
 def sequencerScreen_onMousePress(app, mouseX, mouseY):
     rows, cols = len(Button.buttons), len(Button.buttons[0])
@@ -124,13 +186,9 @@ def checkAndHandleSequencerPress(app, mouseX, mouseY, rows, cols):
     for row in range(rows):
         for col in range(cols):
             #get the pressed row and col of pressed button
-            #update the corresponding row and col of app.sequences
+            #update the corresponding row and col of app.sequenceLists
             Button.buttons[row][col].checkPressInButton(mouseX, mouseY)
-            if Button.buttons[row][col].pressed:
-                app.sequences[row][col] = True
-            elif not(Button.buttons[row][col].pressed):
-                app.sequences[row][col] = False
-    prettyPrint(app.sequences)
+            app.sequenceLists[row][col] = Button.buttons[row][col].pressed
 
 def sequencerScreen_onKeyPress(app, key):
     if key == 'p':
@@ -142,12 +200,9 @@ def sequencerScreen_onKeyPress(app, key):
 
 def sequencerScreen_onStep(app):
     if app.playing:
-        app.stepi %= 16
-        #make this more general by sequence in app.sequences[sequence].handel:
-        app.kickSequence.handleStep(app.stepi)
-        app.snareSequence.handleStep(app.stepi)
-        print(app.stepi)
-        app.stepi += 1
+        for sequence in app.sequencer:
+            app.sequencer[sequence].handleStep(app.stepi)
+        app.stepi = (app.stepi+1) % 16
 
 def prettyPrint(L):
     print()
@@ -166,7 +221,7 @@ class Button:
     buttons = []
 
     def __init__(self, cx, cy, width, height, onColor='limeGreen', 
-                 offColor='gainsboro'):
+                 offColor='red'):
         self.leftX = cx - width//2
         self.topY = cy - height//2
         self.width = width
@@ -178,19 +233,20 @@ class Button:
     def __repr__(self):
         return f'Button({self.leftX},{self.topY}), pressed:{self.pressed}'
 
-    def drawButton(self):
+    def drawButton(self, borderFill=None):
         if self.pressed:
             color = self.onColor
-        elif self.pressed == False:
+        elif not(self.pressed):
             color = self.offColor
         # color = self.onColor if self.pressed else self.offColor
         drawRect(self.leftX, self.topY, self.width, self.height,
-                 fill=color, border='black')
+                 fill=color, border=borderFill, borderWidth=2)
 
     def checkPressInButton(self, mouseX, mouseY):
         if (self.leftX <= mouseX <= self.leftX + self.width and
             self.topY <= mouseY <= self.topY + self.height):
             self.pressed = not(self.pressed)
+
         
 def main():
     runAppWithScreens(initialScreen='sequencerScreen')

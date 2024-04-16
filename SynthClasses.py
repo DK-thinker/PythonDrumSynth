@@ -16,12 +16,13 @@ import pyaudio
 from threading import Thread
 from scipy import signal as sg
 import math
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+from pedalboard import HighpassFilter
 
 #### BIG TOP DOWN DESIGN ####
 
 pa = pyaudio.PyAudio()
-sampleRate = 44100
+sampleRate = 44100.0
     
 class Oscillator:
 
@@ -33,7 +34,8 @@ class Oscillator:
         if self.wave not in {'sine', 'triangle', 'sawtooth', 'square',
                              'whiteNoise'}:
             raise Exception('Spell your waveType correctly')
-        self.period = (2 * math.pi * self.freq) / sampleRate
+        if self.freq != None:
+            self.period = (2 * math.pi * self.freq) / sampleRate
 
     def sineGenerator(self, x):
         return (math.sin(self.period*x)) * self.amp
@@ -52,6 +54,7 @@ class Oscillator:
 
         if self.wave == 'whiteNoise':
                 oscArray = np.random.normal(0, 1, len(oscArray))
+                oscArray *= self.amp
         else:
             for x in range(len(oscArray)):
                 if self.wave == 'sine':
@@ -69,9 +72,11 @@ class Oscillator:
     
 class DrumSynth:
 
-    def __init__(self, oscParamaters, envelope):
+    def __init__(self, oscParamaters, envelope, filter=None, dB=1):
         self.oscParamaters = oscParamaters  # List of dictionaries of args to send to the oscillator
         self.envelope = envelope  
+        self.dB = dB
+        self.filter = filter
 
     def getWavesFromOscillator(self):
         waves = []
@@ -80,6 +85,12 @@ class DrumSynth:
             waveArray = signal.generateWaveArray()
             waves.append(waveArray)
         return waves
+    
+    def filterWave(self, wave):
+        filter = HighpassFilter(cutoff_frequency_hz=self.filter)
+        filteredWave = filter.process(input_array=wave,
+                                              sample_rate=sampleRate)
+        return filteredWave
         
     def waveAdder(self):
         waves = self.getWavesFromOscillator()
@@ -88,13 +99,45 @@ class DrumSynth:
     def ampModulation(self):
         wave = self.waveAdder()
         env = self.envelope.generateEnvArray()
-        modedWave = np.multiply(wave, env)
+        modedWave = self.makeSureWavesDontClip(np.multiply(wave, env))
         return modedWave
+    
+    def makeSureWavesDontClip(self, wave):
+        #squish values to be between -1 and 1
+        peak = np.max(wave)
+        if peak > 1:
+            amountToShrink = 1 / peak
+            return (wave * amountToShrink)
+        else:
+            return wave
     
     def getSamples(self):            #From Alan
         wave = self.ampModulation()
-        sample = [int((wave[i]) * 32767) for i in range(len(wave))]
-        return np.int16(sample).tobytes()
+        # wave = convertTo_dB(wave, dB=self.dB)
+        # matplotlib debugging stuff
+        x = np.arange(len(wave))
+        y = wave
+        # plt.plot(x, y)
+        # plt.show()
+        sample = np.float32(wave)
+        if self.filter != None:
+            sample = self.filterWave(sample)
+        
+        return sample.tobytes()
+    
+def get_dB_ofAmp(amp):
+    if amp == 0: return 0
+    return 20 * math.log10(abs(amp))
+    
+def convertTo_dB(wave, dB):
+    for i in range(len(wave)):
+        print(wave[i])
+        curr_dB = get_dB_ofAmp(wave[i])
+        dB_Diff = dB - curr_dB
+        print(dB_Diff)
+        wave[i] = 10 ** (dB_Diff/20)
+        print(wave[i])
+    return wave
     
 
 class ADSR:
@@ -149,8 +192,8 @@ class Sequencer:
     def initSeqStream(self):
         self.stream = pa.open(output=True,
                     channels=1,
-                    rate=sampleRate,
-                    format=pyaudio.paInt16,
+                    rate=int(sampleRate),
+                    format=pyaudio.paFloat32,
                     frames_per_buffer=256,
                     )
 
@@ -159,14 +202,15 @@ class Sequencer:
         self.sequence = sequence
         self.sample = sample
 
-        #16 bit byte array is 2x the length of samples
+        #32 bit byte array is 2x the length of samples
         self.sampleLength = len(sample) // 2 
 
         self.playing = False
         self.openThread()
         
     def openThread(self):
-        self.thread = Thread(target=self.writeToStream, daemon=True)
+        self.thread = Thread(target=self.writeToStream, args=(None, ),
+                              daemon=True)
         self.thread.start()
         
     def handleStep(self, i):
@@ -175,5 +219,8 @@ class Sequencer:
                 self.stream.start_stream()
             self.writeToStream()
     
-    def writeToStream(self):
-            self.stream.write(self.sample)
+    def writeToStream(self, actuallyWrite=True):
+            # actuallyWrite fixes bug with samples playing on thread 
+            # initiazition
+            if actuallyWrite:
+                self.stream.write(self.sample)
