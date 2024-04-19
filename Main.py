@@ -4,6 +4,7 @@ from threading import *
 import pyaudio 
 import numpy as np
 from cmu_graphics import *
+import pedalboard as pb
 
 sampleRate = 44100.0
 pa = pyaudio.PyAudio()
@@ -42,83 +43,183 @@ def initializeSamples(app):
         app.kickSusLev = .5
         app.kickR = .2
         app.kick_dB = 0
-        kick = DrumSynth([{'length':kickLength, 'freq': app.kickFreq,
-                           'amp':app.kickAmp, 'wavetype':app.kickWaveType}],
-                        ADSR(length=kickLength, attack=app.kickA, 
-                             decay=app.kickD, sustainLength=app.kickSusLen,
-                             sustainLevel=app.kickSusLev, release=app.kickR),
-                        dB=app.kick_dB)
+        kick = DrumSynth(
+            [
+            Oscillator(
+                length=kickLength, freq=app.kickFreq, amp=app.kickAmp,
+                wave=app.kickWaveType
+                )
+            ],
+            ADSR(
+                length=kickLength, attack=app.kickA, 
+                decay=app.kickD, sustainLength=app.kickSusLen,
+                sustainLevel=app.kickSusLev, release=app.kickR
+                ),
+            dB=app.kick_dB
+            )
         return kick.getSamples()
     def setSnare():
         snareLength = app.lengthOfCell
-        app.snarePitchedFreq = 666
-        app.snarePitchedAmp = .7
-        app.snarePitchedWave = 'square'
-        app.snareNoiseAmp = .3
+        app.snareFreq = 380
+        app.snarePitchedAmp = .6
+        app.snarePitchedWave = 'triangle'
+        app.snareNoiseAmp = .4
         app.snareA = .1
         app.snareD = .3
-        app.snareSusLen = .4
+        app.snareSusLen = .2
         app.snareSusLev = 1
-        app.snareR = .01
+        app.snareR = .4
         app.snare_dB = -3
-        app.snareFilter = 900.0
-        snare = DrumSynth([
-            {'length':snareLength, 'freq':app.snarePitchedFreq, 
-             'amp':app.snarePitchedAmp,
-            'wavetype':app.snarePitchedWave},
-            {'length':snareLength, 'freq':None, 'amp':app.snareNoiseAmp,
-            'wavetype':'whiteNoise'}
+        app.snareFilterCutoff = 500
+        app.snareFilterMode = pb.LadderFilter.Mode.HPF24
+        app.snareFilterRes = .5
+        app.snareFilterDrive = 1
+        snare = DrumSynth(
+            [
+            Oscillator(
+                length=snareLength, freq=app.snareFreq,
+                amp=app.snarePitchedAmp, wave=app.snarePitchedWave
+                ),
+            Oscillator(
+                length=snareLength, freq=None, amp=app.snareNoiseAmp, wave='whiteNoise'
+                )
             ], 
-            ADSR(length=snareLength, attack=app.snareA, decay=app.snareD, 
-                 sustainLength=app.snareSusLen, sustainLevel=app.snareSusLev,
-                 release=app.snareR),
-            filter=app.snareFilter,
-            dB=app.snare_dB)
+            ADSR(
+                length=snareLength, attack=app.snareA, decay=app.snareD, 
+                sustainLength=app.snareSusLen, sustainLevel=app.snareSusLev,
+                release=app.snareR
+                ),
+            pb.LadderFilter(
+                mode=app.snareFilterMode,
+                cutoff_hz=app.snareFilterCutoff,
+                resonance=app.snareFilterRes,
+                drive=app.snareFilterDrive
+                ),
+            dB=app.snare_dB
+            )
+        
         return snare.getSamples()
     def setClHH():
         clHHLength = app.lengthOfCell
-        app.clHHWavetype = 'whiteNoise'
         app.clHHAmp = 1
         app.clHHA = .01
         app.clHHD = .1
         app.clHHSusLen = .1
         app.clHHSusLevel = .8
         app.clHHR = .1
-        app.clHHFilter = 14000
+        app.clHHFilterFreq = 10000
+        app.clHHFilterRes = .8
         app.clHH_dB = -1
-        clHH = DrumSynth([{'length':clHHLength, 'freq':None, 'amp':app.clHHAmp,
-                           'wavetype':app.clHHWavetype}],
-                           ADSR(length=clHHLength, attack=app.clHHA,
-                                decay=app.clHHD, sustainLength=app.clHHSusLen,
-                                sustainLevel=app.clHHSusLevel,
-                                release=app.clHHR),
-                            filter=app.clHHFilter,
-                            dB=app.clHH_dB)
+        clHH = DrumSynth(
+            [
+            Oscillator(
+                length=clHHLength, freq=None, amp=app.clHHAmp, wave='whiteNoise'
+                )
+            ],
+            ADSR(
+                length=clHHLength, attack=app.clHHA,
+                decay=app.clHHD, sustainLength=app.clHHSusLen,
+                sustainLevel=app.clHHSusLevel,
+                release=app.clHHR
+                ),
+            pb.LadderFilter(
+                mode=pb.LadderFilter.Mode.HPF24,
+                cutoff_hz=app.clHHFilterFreq,
+                resonance=app.clHHFilterRes,
+                drive=3
+                ),
+            dB=app.clHH_dB
+            )
         return clHH.getSamples()
     def setOHH():
         oHHLength = app.lengthOfCell
-        app.oHHWavetype = 'whiteNoise'
         app.oHHAmp = 1
-        app.oHHA = .2
-        app.oHHD = .01
-        app.oHHSusLen = .7
-        app.oHHSusLev = .9
-        app.oHHR = .01
-        app.oHHFilter = 16000
+        app.oHHA = .1
+        app.oHHD = .2
+        app.oHHSusLen = .4
+        app.oHHSusLev = .8
+        app.oHHR = .3
+        app.oHHFilterFreq = 9000
+        app.oHHFilterRes = .4
+        app.oHHFilterDrive = 8
         app.oHH_dB = -1
-        oHH = DrumSynth([{'length':oHHLength,'freq':None, 'amp':app.oHHAmp,
-                          'wavetype':app.oHHWavetype}],
-                          ADSR(length=oHHLength, attack=app.oHHA,
-                               decay=app.oHHD, sustainLength=app.oHHSusLen,
-                               sustainLevel=app.oHHSusLev, release=app.oHHR),
-                            filter=app.oHHFilter,
-                            dB=app.oHH_dB)
+        oHH = DrumSynth(
+            [
+            Oscillator(
+                length=oHHLength, freq=None, amp=app.oHHAmp, wave='whiteNoise'
+                )
+            ],
+            ADSR(
+                length=oHHLength, attack=app.oHHA,
+                decay=app.oHHD, sustainLength=app.oHHSusLen,
+                sustainLevel=app.oHHSusLev, release=app.oHHR
+                ),
+            pb.LadderFilter(
+                mode=pb.LadderFilter.Mode.HPF24, 
+                cutoff_hz=app.oHHFilterFreq,
+                resonance=app.oHHFilterRes,
+                drive=app.oHHFilterDrive
+                ),
+            dB=app.oHH_dB
+            )
         return oHH.getSamples()
+    def setLoTom():
+        tomLength = app.lengthOfCell
+        app.tomWave = 'sawtooth'
+        app.loTomPitch = 120
+        app.loTomAmp = .8
+        app.loTomA = .01
+        app.loTomD = .1
+        app.loTomSusLen = .2
+        app.loTomSusLev = .4
+        app.loTomR = .5
+
+        loTom = DrumSynth(
+            [
+            Oscillator(
+                length=tomLength, freq=app.loTomPitch, amp=app.loTomAmp,
+                wave=app.tomWave
+                )
+            ],
+            ADSR(
+                length=tomLength, attack=app.loTomA, decay=app.loTomD,
+                sustainLength=app.loTomSusLen, sustainLevel=app.loTomSusLev,
+                release=app.loTomR
+                ) 
+        )
+        return loTom.getSamples()
+    def setHiTom():
+        tomLength = app.lengthOfCell
+        app.hiTomFreq = 420
+        app.hiTomAmp = .6
+        app.hiTomA = .01
+        app.hiTomD = .1
+        app.hiTomSusLen = .2
+        app.hiTomSusLev = .4
+        app.hiTomR = .5
+        hiTom = DrumSynth(
+            [
+            Oscillator(
+                length=tomLength, freq=app.hiTomFreq, amp=app.hiTomAmp,
+                wave=app.tomWave
+            )
+            ],
+            ADSR(
+                length=tomLength, attack=app.hiTomA, decay=app.hiTomD,
+                sustainLength=app.hiTomSusLen, sustainLevel=app.hiTomSusLev,
+                release=app.hiTomR
+                )
+        )
+        return hiTom.getSamples()
+    
 
     app.samples['kick'] = setKick()
     app.samples['snare'] = setSnare()
     app.samples['clHH'] = setClHH()
     app.samples['oHH'] = setOHH()
+    app.samples['loTom'] = setLoTom()
+    app.samples['hiTom'] = setHiTom()
+
     
     
 ## SEQUENCER SCREEN ##
@@ -141,7 +242,9 @@ def initializeSequences(app):
             'kick' : Sequencer(app.sequenceLists[0], app.samples['kick']),
             'snare' : Sequencer(app.sequenceLists[1], app.samples['snare']),
             'clHH' : Sequencer(app.sequenceLists[2], app.samples['clHH']),
-            'oHH' : Sequencer(app.sequenceLists[3], sample=app.samples['oHH'])
+            'oHH' : Sequencer(app.sequenceLists[3], app.samples['oHH']),
+            'loTom' : Sequencer(app.sequenceLists[4], app.samples['loTom']),
+            'hiTom' : Sequencer(app.sequenceLists[5], app.samples['hiTom'])
                     }   
 def loadSequencerBoard(app):
     #initializes button objects for the sequencer
@@ -162,12 +265,11 @@ def loadSequencerBoard(app):
             cx += xSpacing + buttonW
         Button.buttons += [rowOfButtons]
         cy += ySpacing + buttonH
-    # print(Button.buttons)
 
 def sequencerScreen_redrawAll(app):
     drawRect(0, 0, app.width, app.height, fill='slateGray')
-    drawLabel('DKTheThinker DrumSynth', app.width/2, 20, font='monospace',
-              fill='indigo', bold=True, size=30)
+    drawLabel('DKTheThinker Proprietary DrumSynth', app.width/2, 20, 
+              font='monospace', fill='indigo', bold=True, size=30)
     drawSequencer(app)
 
 def drawSequencer(app):
@@ -191,12 +293,11 @@ def checkAndHandleSequencerPress(app, mouseX, mouseY, rows, cols):
             app.sequenceLists[row][col] = Button.buttons[row][col].pressed
 
 def sequencerScreen_onKeyPress(app, key):
-    if key == 'p':
+    if key == 'space':
         if app.playing == True:
             #reset the step index to 0 on every pause
             app.stepi = 0
         app.playing = not (app.playing)
-
 
 def sequencerScreen_onStep(app):
     if app.playing:

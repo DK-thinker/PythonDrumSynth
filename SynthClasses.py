@@ -17,7 +17,7 @@ from threading import Thread
 from scipy import signal as sg
 import math
 import matplotlib.pyplot as plt
-from pedalboard import HighpassFilter
+from pedalboard import LadderFilter 
 
 #### BIG TOP DOWN DESIGN ####
 
@@ -26,11 +26,11 @@ sampleRate = 44100.0
     
 class Oscillator:
 
-    def __init__(self, paramaters):   #Paramaters is {length, freq, amp, wavetype}
-        self.length = paramaters['length'] #In samples
-        self.freq = paramaters['freq']
-        self.amp = paramaters['amp']
-        self.wave = paramaters['wavetype']
+    def __init__(self, length, freq, amp, wave):   #Paramaters is {length, freq, amp, wavetype}
+        self.length = length #In samples
+        self.freq = freq    #int
+        self.amp = amp  #int <= 1
+        self.wave = wave    #String
         if self.wave not in {'sine', 'triangle', 'sawtooth', 'square',
                              'whiteNoise'}:
             raise Exception('Spell your waveType correctly')
@@ -72,25 +72,24 @@ class Oscillator:
     
 class DrumSynth:
 
-    def __init__(self, oscParamaters, envelope, filter=None, dB=1):
-        self.oscParamaters = oscParamaters  # List of dictionaries of args to send to the oscillator
+    def __init__(self, oscillators, envelope, filter=None, dB=1):
+        self.oscillators = oscillators
+        # List of oscillator objects
         self.envelope = envelope  
         self.dB = dB
         self.filter = filter
 
     def getWavesFromOscillator(self):
         waves = []
-        for paramaters in self.oscParamaters:
-            signal = Oscillator(paramaters)
-            waveArray = signal.generateWaveArray()
+        print(self.oscillators)
+        for wave in self.oscillators:
+            waveArray = wave.generateWaveArray()
             waves.append(waveArray)
         return waves
     
     def filterWave(self, wave):
-        filter = HighpassFilter(cutoff_frequency_hz=self.filter)
-        filteredWave = filter.process(input_array=wave,
-                                              sample_rate=sampleRate)
-        return filteredWave
+        return self.filter.process(input_array=wave, sample_rate=sampleRate)
+
         
     def waveAdder(self):
         waves = self.getWavesFromOscillator()
@@ -224,3 +223,11 @@ class Sequencer:
             # initiazition
             if actuallyWrite:
                 self.stream.write(self.sample)
+
+# class SequencerAudioHandler:
+    # This class should take the sample from the sequencer and apply
+    # pedalboard effects. @TODO you have to refactor the threading and all that
+    # in there, the sequencer should just send the on/off signal to this class
+    # and this class handles writing to the stream, and the gain fx 
+    # if you implement this and its too slow 
+    # pass
