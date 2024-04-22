@@ -276,9 +276,10 @@ def loadSequencerBoard(app):
 
 def initializeFaders(app):
     ## KICK ##
+    faderW, faderH = 40, 80
     kickRow = app.sequencerButtons[0][-1]
     kickRowCY, kickRowLastX = kickRow.cy, (kickRow.leftX + kickRow.width)
-    app.faders += Fader('volume',  )
+    app.faders += Fader('volume', lastSequencerCX+ )
 
 
 
