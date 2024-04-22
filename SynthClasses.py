@@ -71,17 +71,22 @@ class Oscillator:
         return oscArray
     
 class DrumSynth:
+    sampleNum = 0
 
     def __init__(self, oscillators, envelope, filter=None, dB=1):
         self.oscillators = oscillators
+        print(self)
         # List of oscillator objects
         self.envelope = envelope  
         self.dB = dB
         self.filter = filter
+        DrumSynth.sampleNum += 1
+
+    def __repr__(self):
+        return f'sample {DrumSynth.sampleNum}'
 
     def getWavesFromOscillator(self):
         waves = []
-        print(self.oscillators)
         for wave in self.oscillators:
             waveArray = wave.generateWaveArray()
             waves.append(waveArray)
