@@ -14,6 +14,7 @@ class Fader:
         self.currPos = startPos
         self.actualVal = self.currPos * maxVal
         self.target = target
+        self.beingMoved = False
 
     def __repr__(self):
         return f'{self.name} Fader [{self.minVal} {self.maxVal}]'
@@ -24,11 +25,13 @@ class Fader:
         bot = self.cy + self.height//2
         distanceFromBot = bot - mouseY
         self.currPos = distanceFromBot / self.height            
-        print(self.currPos)
+        # print(self.currPos)
 
     def updateValue(self, value):
         self.actualVal = self.currPos * self.maxVal
-        self.target = self.actualVal
+        value = self.actualVal
+        print(self.target)
+
 
     def checkPressInFader(self, mouseX, mouseY):
         if (self.cx-self.width//2 <= mouseX <= self.cx + self.width//2 and
