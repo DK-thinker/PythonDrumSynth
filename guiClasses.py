@@ -2,8 +2,8 @@ from cmu_graphics import *
 
 class Fader:
 
-    def __init__(self, name, cx, cy, width, height, minVal, maxVal, startPos,
-                 target):
+    def __init__(self, name, cx, cy, width, height, minVal, maxVal, 
+                 startVal, function):
         self.cx = cx
         self.cy = cy
         self.name = name
@@ -11,9 +11,9 @@ class Fader:
         self.height = height
         self.minVal = minVal
         self.maxVal = maxVal
-        self.currPos = startPos
+        self.currPos = startVal / maxVal
         self.actualVal = self.currPos * maxVal
-        self.target = target
+        self.function = function
         self.beingMoved = False
 
     def __repr__(self):
@@ -25,12 +25,10 @@ class Fader:
         bot = self.cy + self.height//2
         distanceFromBot = bot - mouseY
         self.currPos = distanceFromBot / self.height            
-        # print(self.currPos)
 
-    def updateValue(self, value):
+    def updateValue(self, app):
         self.actualVal = self.currPos * self.maxVal
-        value = self.actualVal
-        print(self.target)
+        self.function(app, self.actualVal)
 
 
     def checkPressInFader(self, mouseX, mouseY):
@@ -43,7 +41,8 @@ class Fader:
         bottom = self.cy + self.height//2
         top = self.cy - self.height//2
         left = self.cx - self.width//2
-        drawLabel(self.name, self.cx, bottom+10)
+        drawLabel(self.name.split()[1], self.cx+(self.width), self.cy,
+                  rotateAngle=90, size=16, bold=True)
         if self.currPos != 0:
             drawRect(left, bottom-percentOfFader, self.width, percentOfFader,
                     fill='green')

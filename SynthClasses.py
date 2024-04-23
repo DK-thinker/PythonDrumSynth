@@ -73,12 +73,11 @@ class Oscillator:
 class DrumSynth:
     sampleNum = 0
 
-    def __init__(self, oscillators, envelope, filter=None, dB=1):
+    def __init__(self, oscillators, envelope, filter=None, vol=1):
         self.oscillators = oscillators
-        print(self)
         # List of oscillator objects
         self.envelope = envelope  
-        self.dB = dB
+        self.vol = vol
         self.filter = filter
         DrumSynth.sampleNum += 1
 
@@ -111,9 +110,9 @@ class DrumSynth:
         peak = np.max(wave)
         if peak > 1:
             amountToShrink = 1 / peak
-            return (wave * amountToShrink)
+            return (wave * amountToShrink) * self.vol
         else:
-            return wave
+            return wave * self.vol
     
     def getSamples(self):            #From Alan
         wave = self.ampModulation()
@@ -129,19 +128,6 @@ class DrumSynth:
         
         return sample.tobytes()
     
-def get_dB_ofAmp(amp):
-    if amp == 0: return 0
-    return 20 * math.log10(abs(amp))
-    
-def convertTo_dB(wave, dB):
-    for i in range(len(wave)):
-        print(wave[i])
-        curr_dB = get_dB_ofAmp(wave[i])
-        dB_Diff = dB - curr_dB
-        print(dB_Diff)
-        wave[i] = 10 ** (dB_Diff/20)
-        print(wave[i])
-    return wave
     
 
 class ADSR:
@@ -192,6 +178,7 @@ class ADSR:
     
 class Sequencer:
     bpm = 130
+    totalCreated = 0
 
     def initSeqStream(self):
         self.stream = pa.open(output=True,
@@ -205,6 +192,7 @@ class Sequencer:
         self.initSeqStream()
         self.sequence = sequence
         self.sample = sample
+        Sequencer.totalCreated += 1
 
         #32 bit byte array is 2x the length of samples
         self.sampleLength = len(sample) // 2 

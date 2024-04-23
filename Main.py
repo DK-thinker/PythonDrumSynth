@@ -12,10 +12,7 @@ pa = pyaudio.PyAudio()
 
 '''
 @TODO 
-Build rest of the sounds
-figure out volume
-add knobs and macrocontrols
-add moving playhead
+Implement grading shit
 
 '''
 
@@ -41,18 +38,17 @@ def initializeSamples(app):
     app.kickSusLen = .1
     app.kickSusLev = .4
     app.kickR = .1
-    app.kick_dB = 0
 
     app.snareFreq = 200
-    app.snarePitchedAmp = .6
+    app.snarePitchedAmp = 1
     app.snarePitchedWave = 'triangle'
-    app.snareNoiseAmp = .4
+    app.snareNoiseAmp = .1
     app.snareA = .1
     app.snareD = .3
     app.snareSusLen = .2
     app.snareSusLev = 1
     app.snareR = .4
-    app.snare_dB = -3
+    app.snareVol = 1
     app.snareFilterCutoff = 500
     app.snareFilterMode = pb.LadderFilter.Mode.HPF24
     app.snareFilterRes = .5
@@ -66,35 +62,44 @@ def initializeSamples(app):
     app.clHHR = .1
     app.clHHFilterFreq = 10000
     app.clHHFilterRes = .8
-    app.clHH_dB = -1
+    app.clHHFilterDrive = 1
+    app.clHHVol = 1
 
     app.oHHAmp = 1
-    app.oHHA = .1
-    app.oHHD = .2
+    app.oHHA = .01
+    app.oHHD = 0
     app.oHHSusLen = .4
-    app.oHHSusLev = .8
-    app.oHHR = .3
+    app.oHHSusLev = 1
+    app.oHHR = .09
     app.oHHFilterFreq = 7000
     app.oHHFilterRes = .9
     app.oHHFilterDrive = 8
-    app.oHH_dB = -1
+    app.oHHVol = 1
 
     app.tomWave = 'square'
-    app.loTomPitch = 120
-    app.loTomAmp = .8
+    app.loTomFreq = 220
+    app.loTomAmp = .2
     app.loTomA = .01
     app.loTomD = .1
     app.loTomSusLen = .2
     app.loTomSusLev = .4
     app.loTomR = .5
+    app.loTomCutoff = 100
+    app.loTomRes = .1
+    app.loTomDrive = 4
+    app.loTomVol = 1
 
     app.hiTomFreq = 420
-    app.hiTomAmp = .6
+    app.hiTomAmp = .2
     app.hiTomA = .01
     app.hiTomD = .1
     app.hiTomSusLen = .2
     app.hiTomSusLev = .4
     app.hiTomR = .5
+    app.hiTomCutoff = 120
+    app.hiTomRes = .2
+    app.hiTomDrive = 2
+    app.hiTomVol = 1
 
     app.samples['kick'] = setKick(app).getSamples()
     app.samples['snare'] = setSnare(app).getSamples()
@@ -116,7 +121,6 @@ def setKick(app):
             decay=app.kickD, sustainLength=app.kickSusLen,
             sustainLevel=app.kickSusLev, release=app.kickR
             ),
-        dB=app.kick_dB
         )
     return kick
 
@@ -143,7 +147,7 @@ def setSnare(app):
             resonance=app.snareFilterRes,
             drive=app.snareFilterDrive
             ),
-        dB=app.snare_dB
+        vol=app.snareVol
         )
     return snare
 
@@ -166,7 +170,7 @@ def setClHH(app):
             resonance=app.clHHFilterRes,
             drive=3
             ),
-        dB=app.clHH_dB
+        vol=app.clHHVol
         )
     return clHH
 
@@ -188,7 +192,7 @@ def setOHH(app):
             resonance=app.oHHFilterRes,
             drive=app.oHHFilterDrive
             ),
-        dB=app.oHH_dB
+        vol=app.oHHVol
         )
     return oHH
 
@@ -196,7 +200,7 @@ def setLoTom(app):
     loTom = DrumSynth(
         [
         Oscillator(
-            length=app.lengthOfCell, freq=app.loTomPitch, amp=app.loTomAmp,
+            length=app.lengthOfCell, freq=app.loTomFreq, amp=app.loTomAmp,
             wave=app.tomWave
             )
         ],
@@ -204,7 +208,12 @@ def setLoTom(app):
             length=app.lengthOfCell, attack=app.loTomA, decay=app.loTomD,
             sustainLength=app.loTomSusLen, sustainLevel=app.loTomSusLev,
             release=app.loTomR
-            ) 
+            ),
+        pb.LadderFilter(
+            mode=pb.LadderFilter.Mode.HPF12,
+            cutoff_hz=app.loTomCutoff, resonance=app.loTomRes,
+            drive=app.loTomDrive),
+        vol = app.loTomVol
     )
     return loTom
 
@@ -220,10 +229,65 @@ def setHiTom(app):
             length=app.lengthOfCell, attack=app.hiTomA, decay=app.hiTomD,
             sustainLength=app.hiTomSusLen, sustainLevel=app.hiTomSusLev,
             release=app.hiTomR
-            )
+            ),
+        pb.LadderFilter(
+            mode=pb.LadderFilter.Mode.HPF12,
+            cutoff_hz=app.hiTomCutoff, resonance=app.hiTomRes,
+            drive=app.hiTomDrive),
+        vol=app.hiTomVol
     )
     return hiTom
        
+# UPDATE VALUE HELPERS #
+
+def changeBPM(app, val):
+    Sequencer.bpm = val
+    setOnStepFromBPM(app)
+def changeKickAmp(app, val):
+    app.kickAmp = val
+def changeKickFreq(app, val):
+    app.kickFreq = val
+def changeSnareVol(app, val):
+    app.snareVol = val
+def changeSnarePitch(app, val):
+    app.snarePitchedFreq = val
+def changeSnarePitchedAmp(app, val):
+    app.snarePitchedAmp = val
+def changeClHHVol(app, val):
+    app.clHHVol = val
+def changeClHHFilterFreq(app, val):
+    app.clHHFilterFreq = val
+def changeClHHFilterRes(app, val):
+    app.clHHFilterRes = val
+def changeClHHFilterDrive(app, val):
+    app.clHHFilterDrive = val
+def chagneOHHVol(app, val):
+    app.oHHVol = val
+def changeOHHCFilterFreq(app, val):
+    app.oHHFilterFreq = val
+def changeOHHFilterRes(app, val):
+    app.oHHFilterRes = val
+def changeLoTomVol(app, val):
+    app.loTomVol = val
+def changeLoTomPitch(app, val):
+    app.loTomFreq = val
+def changeLoTomCutoff(app, val):
+    app.loTomCutoff = val
+def changeLoTomRes(app, val):
+    app.loTomRes = val
+def changeLoTomDrive(app, val):
+    app.loTomDrive = val
+def changeHiTomVol(app, val):
+    app.hiTomVol = val
+def changeHiTomPitch(app, val):
+    app.hiTomFreq = val
+def changeHiTomCutoff(app, val):
+    app.hiTomCutoff = val
+def changeHiTomRes(app, val):
+    app.hiTomRes = val
+def changeHiTomDrive(app, val):
+    app.hiTomDrive = val
+
 ## SEQUENCER SCREEN ##
 
 def sequencerScreen_onScreenActivate(app):
@@ -231,20 +295,21 @@ def sequencerScreen_onScreenActivate(app):
     app.playing = False
     app.sequencerButtons = []
     app.faders = []
+    app.sequenceLists = [
+                [False]*16,
+                [False]*16,
+                [False]*16,
+                [False]*16,
+                [False]*16,
+                [False]*16
+                ]
 
     initializeSequences(app)
     loadSequencerBoard(app)
     initializeFaders(app)
 
 def initializeSequences(app):
-    app.sequenceLists = [
-                    [False]*16,
-                    [False]*16,
-                    [False]*16,
-                    [False]*16,
-                    [False]*16,
-                    [False]*16
-                    ]
+
     app.sequencer = {
             'kick' : Sequencer(app.sequenceLists[0], app.samples['kick']),
             'snare' : Sequencer(app.sequenceLists[1], app.samples['snare']),
@@ -275,13 +340,122 @@ def loadSequencerBoard(app):
         cy += ySpacing + buttonH
 
 def initializeFaders(app):
+
+    app.faders.append(
+        Fader('0 BPM', app.width-100, 200, 50, 100,  40, 200,
+              Sequencer.bpm, changeBPM)
+    )
+
+    faderW, faderH = 20, 80
+    faderSpacing = 20
+
+
     ## KICK ##
-    faderW, faderH = 40, 80
     kickRow = app.sequencerButtons[0][-1]
-    kickRowCY, kickRowLastX = kickRow.cy, (kickRow.leftX + kickRow.width)
-    app.faders += Fader('volume', lastSequencerCX+ )
+    cy, cx = kickRow.cy, (kickRow.leftX + kickRow.width + faderW)
+    app.faders.append(
+        Fader('kick Vol', cx, cy, faderW, faderH,
+              0, 2, app.kickAmp, changeKickAmp))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('kick Pitch', cx, cy, faderW, faderH,
+              60, 220, app.kickFreq, changeKickFreq))
+    
+    ## SNARE ##
+    snareRow = app.sequencerButtons[1][-1]
+    cy, cx = snareRow.cy, (snareRow.leftX + snareRow.width + faderW)
+    app.faders.append(
+        Fader('snare Vol', cx, cy, faderW, faderH,
+              0, 2, app.snareVol, changeSnareVol)
+              )
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('snare Tone', cx, cy, faderW, faderH, 0, 2, 
+              app.snarePitchedAmp, changeSnarePitchedAmp)
+              )
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('snare Pitch', cx, cy, faderW, faderH, 100, 600,
+              app.snareFreq, changeSnarePitch)
+              )
+    
+    ## CLHH ##
+    clHHRow = app.sequencerButtons[2][-1]
+    cy, cx = clHHRow.cy, (clHHRow.leftX + clHHRow.width + faderW)
+    app.faders.append(
+        Fader('clHH Vol', cx, cy, faderW, faderH, 0, 3, app.clHHVol,
+              changeClHHVol))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('clHH Cutoff', cx, cy, faderW, faderH, 5000, 14000,
+              app.clHHFilterFreq, changeClHHFilterFreq))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('clHH Resonacne', cx, cy, faderW, faderH, 0, 1, app.clHHFilterRes,
+              changeClHHFilterRes))
+  
+    ## OHH #
+    oHHRow = app.sequencerButtons[3][-1]
+    cy, cx = oHHRow.cy, (oHHRow.leftX + oHHRow.width + faderW)
+    app.faders.append(
+        Fader('oHH Vol', cx, cy, faderW, faderH, 0, 3, app.oHHVol, chagneOHHVol))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('oHH Cutoff', cx, cy, faderW, faderH, 500, 14000,
+              app.oHHFilterFreq, changeOHHCFilterFreq))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('oHH Resonance', cx, cy, faderW, faderH, 0, 1, app.oHHFilterRes,
+              changeOHHFilterRes)
+    )
 
-
+    ## loTOM ##
+    loTomRow = app.sequencerButtons[4][-1]
+    cy, cx = loTomRow.cy, (loTomRow.leftX + loTomRow.width + faderW)
+    app.faders.append(
+        Fader('loTom Vol', cx, cy, faderW, faderH, 0, 2, app.loTomVol,
+              changeLoTomVol)
+        )
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('loTom Pitch', cx, cy, faderW, faderH, 150, 400, app.loTomFreq,
+              changeLoTomPitch))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('loTom Cutoff', cx, cy, faderW, faderH, 100, 400, app.loTomCutoff,
+              changeLoTomCutoff))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('loTom Resonacne', cx, cy, faderW, faderH, 0, 1, app.loTomRes,
+              changeLoTomRes))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('loTom Drive', cx, cy, faderW, faderH, 0, 20, app.loTomDrive,
+              changeLoTomDrive))
+    
+    ## HI TOM ##
+    hiTomRow = app.sequencerButtons[5][-1]
+    cy, cx = hiTomRow.cy, (hiTomRow.leftX + hiTomRow.width + faderW)
+    app.faders.append(
+        Fader('hiTom Vol', cx, cy, faderW, faderH, 0, 2, app.hiTomVol,
+              changeHiTomVol)
+        )
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('hiTom Pitch', cx, cy, faderW, faderH, 180, 600, app.hiTomFreq,
+              changeHiTomPitch))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('hiTom Cutoff', cx, cy, faderW, faderH, 100, 400, app.hiTomCutoff,
+              changeHiTomCutoff))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('hiTom Resonacne', cx, cy, faderW, faderH, 0, 1, app.hiTomRes,
+              changeHiTomRes))
+    cx += faderW + faderSpacing
+    app.faders.append(
+        Fader('hiTom Drive', cx, cy, faderW, faderH, 0, 20, app.hiTomDrive,
+              changeHiTomDrive))
 
 def sequencerScreen_redrawAll(app):
     drawRect(0, 0, app.width, app.height, fill='slateGray')
@@ -289,7 +463,6 @@ def sequencerScreen_redrawAll(app):
               font='monospace', fill='indigo', bold=True, size=30)
     drawSequencer(app)
     drawFaders(app)
-
 
 def drawSequencer(app):
     rows, cols = len(app.sequencerButtons), len(app.sequencerButtons[0])
@@ -322,16 +495,31 @@ def sequencerScreen_onMouseDrag(app, mouseX, mouseY):
 def sequencerScreen_onMouseRelease(app, mouseX, mouseY):
     for fader in app.faders:
         if fader.beingMoved:
-            fader.updateValue()
 
-    # checkClickInKnob(app, mouseX, mouseY)
+            fader.updateValue(app)
+            if fader.name.startswith('kick'):
+                app.samples['kick'] = setKick(app).getSamples()
+                
+            elif fader.name.startswith('snare'):
+                app.samples['snare'] = setSnare(app).getSamples()
 
-# def checkClickInKnob:
+            elif fader.name.startswith('clHH'):
+                app.samples['clHH'] = setClHH(app).getSamples()
+            
+            elif fader.name.startswith('oHH'):
+                app.samples['oHH'] = setOHH(app).getSamples()
+
+            elif fader.name.startswith('loTom'):
+                app.samples['loTom'] = setLoTom(app).getSamples()
+
+            elif fader.name.startswith('hiTom'):
+                app.samples['hiTom'] = setHiTom(app).getSamples()
 
 
-# def sequencerScreen_onMouse:
 
+            initializeSequences(app)
 
+            fader.beingMoved = not fader.beingMoved
 
 def checkAndHandleSequencerPress(app, mouseX, mouseY):
     rows, cols = len(app.sequencerButtons), len(app.sequencerButtons[0])
@@ -351,7 +539,7 @@ def sequencerScreen_onKeyPress(app, key):
     if key == 'k':
         app.kickFreq += 40
         app.samples['kick'] = setKick(app).getSamples()
-        app.sequencer['kick'].oscillators = app.samples['kick']
+        app.sequencer['kick'].sample = app.samples['kick']
         # post = app.samples['kick']
         # assert(pre == post)
 
@@ -366,11 +554,6 @@ def prettyPrint(L):
     for row in L:
         print(row)
 
-## SOUND EDITOR SCREENS ##
-
-
-
-        
 def main():
     runAppWithScreens(initialScreen='sequencerScreen')
 
