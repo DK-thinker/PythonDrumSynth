@@ -1,6 +1,7 @@
-Simple 16-step sequencer with (hopefully) real time sound synthesis. Main library will be pyAudio for all the port audio in and out stuff. 
-All sounds will have a few macro parameters that can be modified by the user.
-Plan-b in case realtime synthesis is too slow, would be uploading samples and then the app would just play the samples.
+16 step drum sequencer and sample generator.
+Basically generates a sample of the drum sound and plays it every time the 
+sequncer button is green. There is also realtime modification of the samples.
 
-As of 4-10:
-Got the oscillator, envelope and drum synth classes working. Now it is time to build up GUI screens, sequence creation, playback, and buffering! 
+Notes 
+4-22:
+Basically done, all thats left is general polish
