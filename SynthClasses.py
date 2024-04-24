@@ -1,15 +1,6 @@
 ### Oscillator 2.0 ###
 
 ## CITATIONS ##
-'''
-Used Ideas from https://plainenglish.io/blog/making-a-synth-with-python-oscillators-2cb8e68e9c3b, 
-    #https://github.com/18alantom/synth/blob/main/Code%20Oscillators.ipynb 
-    Both of the above are from the same guy, 'Alan'
-
-Referecend https://antreith.wordpress.com/2018/05/12/elementary-signal-generation-with-python/ 
-    and https://www.brownnoiseradio.com/resources/generating-white-noise-in-python%3A-a-step-by-step-guide
-    For wave and white noise generation
-'''
 
 import numpy as np
 import pyaudio 
@@ -17,7 +8,6 @@ from threading import Thread
 from scipy import signal as sg
 import math
 import matplotlib.pyplot as plt
-from pedalboard import LadderFilter 
 
 #### BIG TOP DOWN DESIGN ####
 
@@ -101,7 +91,7 @@ class DrumSynth:
         wave = self.waveAdder()
         env = self.envelope.generateEnvArray()
         modedWave = self.makeSureWavesDontClip(np.multiply(wave, env))
-        return modedWave
+        return np.multiply(wave, env)
     
     def makeSureWavesDontClip(self, wave):  # This func is loosely From Alan
         #squish values to be between -1 and 1
@@ -114,6 +104,7 @@ class DrumSynth:
     
     def getSamples(self):            #From Alan
         wave = self.ampModulation()
+        wave *= self.vol
         sample = np.float32(wave)
         if self.filter != None:
             sample = self.filterWave(sample)

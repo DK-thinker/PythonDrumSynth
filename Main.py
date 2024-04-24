@@ -11,16 +11,46 @@ sampleRate = 44100.0
 pa = pyaudio.PyAudio()
 
 '''
-@TODO 
+
 GRADING INFO
 Move faders to modify paramaters of sound
+Press white buttons to add sound there
 Space bar / play pause button will play the sequencer
 Press 0 - Clears the sequence
-Press 1 - Reggaton Groove
+Press 1 - Latin Groove
 Press 2 - Rock Groove
 
+References: 
+Used Ideas from https://plainenglish.io/blog/making-a-synth-with-python-oscillators-2cb8e68e9c3b, 
+    #https://github.com/18alantom/synth/blob/main/Code%20Oscillators.ipynb 
+    Both of the above are from the same guy, 'Alan'
+    I studied Alan's general approach to synthesis just to familarize myself
+    how python handels audio and what not. But I implemented my own archetecure
+    of synthesis. However, i did borrow a couple of functions for data 
+    conversion and what not (turning sine values into data writeable to sepeakers).
 
+Referecend https://antreith.wordpress.com/2018/05/12/elementary-signal-generation-with-python/ 
+    and https://www.brownnoiseradio.com/resources/generating-white-noise-in-python%3A-a-step-by-step-guide
+    For wave and white noise generation
 
+Referenced https://docs.python.org/3/library/threading.html and
+    https://realpython.com/intro-to-python-threading/
+    These helped me learn what threading is, how it works, and how to implement
+    it
+
+Referenced https://people.csail.mit.edu/hubert/pyaudio/
+    To learn how to use pyaudio module
+
+Referenced https://spotify.github.io/pedalboard/
+    For using the spotify pedalBoard module, specifically my filter feature is 
+    the filter pedal from that library.
+
+Referenced https://numpy.org/doc/stable/reference/index.html#reference 
+    For using numpy arrays and what not
+
+Unsuccessfuly tried to consult ChatGPT for help with debugging the modules i was
+    unfamiliar with, but at the end of the day it's easier to just read the docs
+    and figure it out myslf.
 '''
 
 def onAppStart(app):
@@ -45,6 +75,7 @@ def initializeSoundParamaters(app): #Giant function that sets sound properties
     app.kickSusLen = .1
     app.kickSusLev = .4
     app.kickR = .1
+    app.kickVol = 2
 
     app.snareFreq = 200
     app.snarePitchedAmp = 1
@@ -79,7 +110,7 @@ def initializeSoundParamaters(app): #Giant function that sets sound properties
     app.oHHSusLev = 1
     app.oHHR = .09
     app.oHHFilterFreq = 7000
-    app.oHHFilterRes = .9
+    app.oHHFilterRes = .4
     app.oHHFilterDrive = 8
     app.oHHVol = 1
 
@@ -91,7 +122,7 @@ def initializeSoundParamaters(app): #Giant function that sets sound properties
     app.loTomSusLen = .2
     app.loTomSusLev = .4
     app.loTomR = .5
-    app.loTomCutoff = 100
+    app.loTomCutoff = 200
     app.loTomRes = .1
     app.loTomDrive = 4
     app.loTomVol = 1
@@ -103,7 +134,7 @@ def initializeSoundParamaters(app): #Giant function that sets sound properties
     app.hiTomSusLen = .2
     app.hiTomSusLev = .4
     app.hiTomR = .5
-    app.hiTomCutoff = 120
+    app.hiTomCutoff = 200
     app.hiTomRes = .2
     app.hiTomDrive = 2
     app.hiTomVol = 1
@@ -132,6 +163,7 @@ def setKick(app):
             decay=app.kickD, sustainLength=app.kickSusLen,
             sustainLevel=app.kickSusLev, release=app.kickR
             ),
+        vol=app.kickVol
         )
     return kick
 
@@ -255,8 +287,8 @@ def setHiTom(app):
 def changeBPM(app, val):
     Sequencer.bpm = val
     setOnStepFromBPM(app)
-def changeKickAmp(app, val):
-    app.kickAmp = val
+def changeKickVol(app, val):
+    app.kickVol = val
 def changeKickFreq(app, val):
     app.kickFreq = val
 def changeSnareVol(app, val):
@@ -300,7 +332,7 @@ def changeHiTomRes(app, val):
 def changeHiTomDrive(app, val):
     app.hiTomDrive = val
 
-## SEQUENCER SCREEN ##
+###### SEQUENCER SCREEN ######
 
 # MODEL #
 def sequencerScreen_onScreenActivate(app):
@@ -362,7 +394,10 @@ def loadSequencerBoard(app):
         cy += ySpacing + buttonH
 
 def initializeFaders(app):
-
+    # This function is probably in bad style, but the other approach would be
+    # to have a list of all the arguments and then loop through that list, which
+    # is unclear in its own right. This way you see every fader thats being 
+    # added.
     app.faders.append(
         Fader('0 BPM', 165, 50, 40, 70,  40, 200,
               Sequencer.bpm, changeBPM)
@@ -371,13 +406,12 @@ def initializeFaders(app):
     faderW, faderH = 20, 80
     faderSpacing = 20
 
-
     ## KICK ##
     kickRow = app.sequencerButtons[0][-1]
     cy, cx = kickRow.cy, (kickRow.leftX + kickRow.width + faderW)
     app.faders.append(
         Fader('kick Vol', cx, cy, faderW, faderH,
-              0, 2, app.kickAmp, changeKickAmp))
+              0, 3, app.kickVol, changeKickVol))
     cx += faderW + faderSpacing
     app.faders.append(
         Fader('kick Pitch', cx, cy, faderW, faderH,
@@ -388,7 +422,7 @@ def initializeFaders(app):
     cy, cx = snareRow.cy, (snareRow.leftX + snareRow.width + faderW)
     app.faders.append(
         Fader('snare Vol', cx, cy, faderW, faderH,
-              0, 2, app.snareVol, changeSnareVol)
+              0, 3, app.snareVol, changeSnareVol)
               )
     cx += faderW + faderSpacing
     app.faders.append(
@@ -440,11 +474,11 @@ def initializeFaders(app):
         )
     cx += faderW + faderSpacing
     app.faders.append(
-        Fader('loTom Pitch', cx, cy, faderW, faderH, 150, 400, app.loTomFreq,
+        Fader('loTom Pitch', cx, cy, faderW, faderH, 100, 400, app.loTomFreq,
               changeLoTomPitch))
     cx += faderW + faderSpacing
     app.faders.append(
-        Fader('loTom Cutoff', cx, cy, faderW, faderH, 100, 400, app.loTomCutoff,
+        Fader('loTom Cutoff', cx, cy, faderW, faderH, 80, 2000, app.loTomCutoff,
               changeLoTomCutoff))
     cx += faderW + faderSpacing
     app.faders.append(
@@ -464,11 +498,11 @@ def initializeFaders(app):
         )
     cx += faderW + faderSpacing
     app.faders.append(
-        Fader('hiTom Pitch', cx, cy, faderW, faderH, 180, 600, app.hiTomFreq,
+        Fader('hiTom Pitch', cx, cy, faderW, faderH, 400, 700, app.hiTomFreq,
               changeHiTomPitch))
     cx += faderW + faderSpacing
     app.faders.append(
-        Fader('hiTom Cutoff', cx, cy, faderW, faderH, 100, 400, app.hiTomCutoff,
+        Fader('hiTom Cutoff', cx, cy, faderW, faderH, 200, 2000, app.hiTomCutoff,
               changeHiTomCutoff))
     cx += faderW + faderSpacing
     app.faders.append(
@@ -528,9 +562,10 @@ def drawFaders(app):
 def drawGradingText(app):
     text = '''GRADING INFO
 Move faders to modify paramaters of sound
+Press white buttons to add sound at that step
 Space bar / play pause button will play the sequencer
 Press 0 - Clears the sequence
-Press 1 - Reggaton Groove
+Press 1 - Latin Groove
 Press 2 - Rock Groove
 '''
     x, y = app.width-20, 10
@@ -544,7 +579,6 @@ def sequencerScreen_onMousePress(app, mouseX, mouseY):
     for button in app.buttons:
         if button.checkPressInButton(mouseX, mouseY):
             if button.name == 'playPause':
-                print('HERE', button)
                 if app.playing == False:
                     #reset the step index to 0 on every play
                     app.stepi = 0
@@ -601,57 +635,55 @@ def sequencerScreen_onKeyPress(app, key):
             app.stepi = 0
         app.playing = not (app.playing)
     if key.isdigit():
-        # digits either wipe or change the preset of the board
-        if key == '0':
-            #Clear board
-            app.sequenceLists = [
-                [False]*16,
-                [False]*16,
-                [False]*16,
-                [False]*16,
-                [False]*16,
-                [False]*16
-                ]
-        elif key == '1':
-            #LATIN GROOVE
-            app.sequenceLists = [
-                [True, False, False, False]*4,
-                [False, False, False, True, False, False, True, False]*2,
-                [True, False, False, True]*4,
-                [False, False, True, False]*4,
-                [False, False, False, True, False, False, True, False, False,
-                 False, False, False, True, False, False, False],
-                [True, False, False, False, False, False, False, False, False,
-                 False, True, False, False, False, False, False]
-                ]
-        elif key == '2':
-            # Rock groove
-            app.sequenceLists = [
-                [True, False, False, False, False, False, False, False]*2,
-                [False, False, False, False, True, False, False, False]*2,
-                [True, False, True, False]*4,
-                [False]*16,
-                [False]*16,
-                [False]*16
+        loadPreset(app, key)
+
+def loadPreset(app, key):
+    # digits either wipe or change the preset of the board
+    if key == '0':
+        #Clear board
+        app.sequenceLists = [
+            [False]*16,
+            [False]*16,
+            [False]*16,
+            [False]*16,
+            [False]*16,
+            [False]*16
             ]
-        
-        initializeSequences(app)
-        # This block graphically changes the buttons on the sequencer
-        rows, cols = len(app.sequencerButtons), len(app.sequencerButtons[0])
-        for row in range(rows):
-            for col in range(cols): 
-                app.sequencerButtons[row][col].pressed = app.sequenceLists[row][col]
+    elif key == '1':
+        #LATIN GROOVE
+        app.sequenceLists = [
+            [True, False, False, False]*4,
+            [False, False, False, True, False, False, True, False]*2,
+            [True, False, False, True]*4,
+            [False, False, True, False]*4,
+            [False, False, False, True, False, False, True, False, False,
+                False, False, False, True, False, False, False],
+            [True, False, False, False, False, False, False, False, False,
+                False, True, False, False, False, False, False]
+            ]
+    elif key == '2':
+        # Rock groove
+        app.sequenceLists = [
+            [True, False, False, False, False, False, False, False]*2,
+            [False, False, False, False, True, False, False, False]*2,
+            [True, False, True, False]*4,
+            [False]*16,
+            [False]*16,
+            [False]*16
+        ]
+    
+    initializeSequences(app)
+    # This block graphically changes the buttons on the sequencer
+    rows, cols = len(app.sequencerButtons), len(app.sequencerButtons[0])
+    for row in range(rows):
+        for col in range(cols): 
+            app.sequencerButtons[row][col].pressed = app.sequenceLists[row][col]
 
 def sequencerScreen_onStep(app):
     if app.playing:
         for sequence in app.sequencer:
             app.sequencer[sequence].handleStep(app.stepi)
         app.stepi = (app.stepi+1) % 16 # %16 for beat wraparound
-
-def prettyPrint(L):
-    print()
-    for row in L:
-        print(row)
 
 def main():
     runAppWithScreens(initialScreen='sequencerScreen')
