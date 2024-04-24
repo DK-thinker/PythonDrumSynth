@@ -44,9 +44,10 @@ class Fader:
         drawLabel(self.name.split()[1], self.cx+(self.width), self.cy,
                   rotateAngle=90, size=16, bold=True)
         if self.currPos != 0:
+            # Percentage of fader filled
             drawRect(left, bottom-percentOfFader, self.width, percentOfFader,
                     fill='green')
-
+        #Fader border if you
         drawRect(left, top, self.width, self.height, fill=None, border='black')
 
 def onAppStart(app):
@@ -61,21 +62,12 @@ def onMouseDrag(app, mouseX, mouseY):
         if fader.checkPressInFader(mouseX, mouseY):
             fader.moveFader(mouseY)
 
-
-
-
-
-# def main():
-#     runApp()
-
-# main()
-
 class Button:
 
     buttons = []
 
     def __init__(self, cx, cy, width, height, onColor='limeGreen', 
-                 offColor='red'):
+                 offColor='red', name=None):
         self.cx = cx
         self.cy = cy
         self.leftX = cx - width//2
@@ -85,6 +77,7 @@ class Button:
         self.onColor = onColor
         self.offColor = offColor
         self.pressed = False
+        self.name = name
 
     def __repr__(self):
         return f'Button({self.leftX},{self.topY}), pressed:{self.pressed}'
@@ -94,11 +87,12 @@ class Button:
             color = self.onColor
         elif not(self.pressed):
             color = self.offColor
-        # color = self.onColor if self.pressed else self.offColor
         drawRect(self.leftX, self.topY, self.width, self.height,
                  fill=color, border=borderFill, borderWidth=2)
+        
 
     def checkPressInButton(self, mouseX, mouseY):
         if (self.leftX <= mouseX <= self.leftX + self.width and
             self.topY <= mouseY <= self.topY + self.height):
             self.pressed = not(self.pressed)
+            return True

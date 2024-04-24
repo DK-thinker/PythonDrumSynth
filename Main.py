@@ -12,7 +12,14 @@ pa = pyaudio.PyAudio()
 
 '''
 @TODO 
-Implement grading shit
+GRADING INFO
+Move faders to modify paramaters of sound
+Space bar / play pause button will play the sequencer
+Press 0 - Clears the sequence
+Press 1 - Reggaton Groove
+Press 2 - Rock Groove
+
+
 
 '''
 
@@ -20,15 +27,15 @@ def onAppStart(app):
     app.width = 1280
     app.height = 720
     setOnStepFromBPM(app)
-    initializeSamples(app)
+    initializeSoundParamaters(app)
+    loadSamples(app)
 
 def setOnStepFromBPM(app):
     secondsPerBeat = 60/Sequencer.bpm
     app.lengthOfCell = (secondsPerBeat / 16) * sampleRate
     app.stepsPerSecond = 4 / secondsPerBeat #4 1/16 notes per beat
 
-def initializeSamples(app):
-    app.samples = {} 
+def initializeSoundParamaters(app): #Giant function that sets sound properties
 
     app.kickFreq = 100
     app.kickAmp = 1    #int <= 1
@@ -101,6 +108,9 @@ def initializeSamples(app):
     app.hiTomDrive = 2
     app.hiTomVol = 1
 
+def loadSamples(app):
+    app.samples = {}
+    # The list of master samples is formed here
     app.samples['kick'] = setKick(app).getSamples()
     app.samples['snare'] = setSnare(app).getSamples()
     app.samples['clHH'] = setClHH(app).getSamples()
@@ -108,6 +118,7 @@ def initializeSamples(app):
     app.samples['loTom'] = setLoTom(app).getSamples()
     app.samples['hiTom'] = setHiTom(app).getSamples()
 
+# The following 'set_' functions generate 'DrumSynth' objects
 def setKick(app):
     kick = DrumSynth(
         [
@@ -239,7 +250,8 @@ def setHiTom(app):
     return hiTom
        
 # UPDATE VALUE HELPERS #
-
+# This might be bad style? but if the functions weren't here, they'd be burried
+# in the Fader class so I think it is cleaner to have the functions here.
 def changeBPM(app, val):
     Sequencer.bpm = val
     setOnStepFromBPM(app)
@@ -290,6 +302,7 @@ def changeHiTomDrive(app, val):
 
 ## SEQUENCER SCREEN ##
 
+# MODEL #
 def sequencerScreen_onScreenActivate(app):
     app.stepi = 0
     app.playing = False
@@ -307,6 +320,15 @@ def sequencerScreen_onScreenActivate(app):
     initializeSequences(app)
     loadSequencerBoard(app)
     initializeFaders(app)
+    initializeButtons(app)
+
+def initializeButtons(app):
+    app.buttons = []
+
+    ## PLAY PAUSE ##
+    playPause = Button(85+25, 50, 50, 50, onColor='red', offColor='white',
+                       name='playPause')
+    app.buttons.append(playPause )
 
 def initializeSequences(app):
 
@@ -342,7 +364,7 @@ def loadSequencerBoard(app):
 def initializeFaders(app):
 
     app.faders.append(
-        Fader('0 BPM', app.width-100, 200, 50, 100,  40, 200,
+        Fader('0 BPM', 165, 50, 40, 70,  40, 200,
               Sequencer.bpm, changeBPM)
     )
 
@@ -457,12 +479,30 @@ def initializeFaders(app):
         Fader('hiTom Drive', cx, cy, faderW, faderH, 0, 20, app.hiTomDrive,
               changeHiTomDrive))
 
+# VIEW #
 def sequencerScreen_redrawAll(app):
     drawRect(0, 0, app.width, app.height, fill='slateGray')
     drawLabel('DKTheThinker Proprietary DrumSynth', app.width/2, 20, 
               font='monospace', fill='indigo', bold=True, size=30)
     drawSequencer(app)
     drawFaders(app)
+    drawButtons(app)
+    drawGradingText(app)
+
+def drawButtons(app):
+    for button in app.buttons:
+        button.drawButton(borderFill='black')
+        if button.name == 'playPause':
+            if button.pressed:
+                # DRAW PAUSE
+                drawRect(button.cx-10, button.cy-15, 5, 30)
+                drawRect(button.cx+5, button.cy-15, 5, 30)
+            else:
+                # DRAW PLAY 
+                points = [button.cx-10, button.cy-15,
+                          button.cx-10, button.cy+15,
+                          button.cx+10, button.cy]
+                drawPolygon(*points)
 
 def drawSequencer(app):
     rows, cols = len(app.sequencerButtons), len(app.sequencerButtons[0])
@@ -481,21 +521,45 @@ def drawSequencer(app):
             app.sequencerButtons[buttonRow][buttonCol].drawButton(borderFill=borderColor)
 
 def drawFaders(app):
+
     for fader in app.faders:
         fader.drawFader()
 
+def drawGradingText(app):
+    text = '''GRADING INFO
+Move faders to modify paramaters of sound
+Space bar / play pause button will play the sequencer
+Press 0 - Clears the sequence
+Press 1 - Reggaton Groove
+Press 2 - Rock Groove
+'''
+    x, y = app.width-20, 10
+    for line in text.splitlines():
+        drawLabel(line, x, y, size=14, align='top-right')
+        y += 20
+
+# CONTROLLER #
 def sequencerScreen_onMousePress(app, mouseX, mouseY):
     checkAndHandleSequencerPress(app, mouseX, mouseY)
-    
+    for button in app.buttons:
+        if button.checkPressInButton(mouseX, mouseY):
+            if button.name == 'playPause':
+                print('HERE', button)
+                if app.playing == False:
+                    #reset the step index to 0 on every play
+                    app.stepi = 0
+                # app.buttons[0].pressed = not app.buttons[0].pressed
+                app.playing = not (app.playing)
+            
 def sequencerScreen_onMouseDrag(app, mouseX, mouseY):
     for fader in app.faders:
         if fader.checkPressInFader(mouseX, mouseY):
             fader.moveFader(mouseY)
 
 def sequencerScreen_onMouseRelease(app, mouseX, mouseY):
+
     for fader in app.faders:
         if fader.beingMoved:
-
             fader.updateValue(app)
             if fader.name.startswith('kick'):
                 app.samples['kick'] = setKick(app).getSamples()
@@ -515,8 +579,6 @@ def sequencerScreen_onMouseRelease(app, mouseX, mouseY):
             elif fader.name.startswith('hiTom'):
                 app.samples['hiTom'] = setHiTom(app).getSamples()
 
-
-
             initializeSequences(app)
 
             fader.beingMoved = not fader.beingMoved
@@ -532,22 +594,59 @@ def checkAndHandleSequencerPress(app, mouseX, mouseY):
 
 def sequencerScreen_onKeyPress(app, key):
     if key == 'space':
-        if app.playing == True:
-            #reset the step index to 0 on every pause
+        #change the state of play pause button to match space bar
+        app.buttons[0].pressed = not app.buttons[0].pressed
+        if app.playing == False:
+            #reset the step index to 0 on every play
             app.stepi = 0
         app.playing = not (app.playing)
-    if key == 'k':
-        app.kickFreq += 40
-        app.samples['kick'] = setKick(app).getSamples()
-        app.sequencer['kick'].sample = app.samples['kick']
-        # post = app.samples['kick']
-        # assert(pre == post)
+    if key.isdigit():
+        # digits either wipe or change the preset of the board
+        if key == '0':
+            #Clear board
+            app.sequenceLists = [
+                [False]*16,
+                [False]*16,
+                [False]*16,
+                [False]*16,
+                [False]*16,
+                [False]*16
+                ]
+        elif key == '1':
+            #LATIN GROOVE
+            app.sequenceLists = [
+                [True, False, False, False]*4,
+                [False, False, False, True, False, False, True, False]*2,
+                [True, False, False, True]*4,
+                [False, False, True, False]*4,
+                [False, False, False, True, False, False, True, False, False,
+                 False, False, False, True, False, False, False],
+                [True, False, False, False, False, False, False, False, False,
+                 False, True, False, False, False, False, False]
+                ]
+        elif key == '2':
+            # Rock groove
+            app.sequenceLists = [
+                [True, False, False, False, False, False, False, False]*2,
+                [False, False, False, False, True, False, False, False]*2,
+                [True, False, True, False]*4,
+                [False]*16,
+                [False]*16,
+                [False]*16
+            ]
+        
+        initializeSequences(app)
+        # This block graphically changes the buttons on the sequencer
+        rows, cols = len(app.sequencerButtons), len(app.sequencerButtons[0])
+        for row in range(rows):
+            for col in range(cols): 
+                app.sequencerButtons[row][col].pressed = app.sequenceLists[row][col]
 
 def sequencerScreen_onStep(app):
     if app.playing:
         for sequence in app.sequencer:
             app.sequencer[sequence].handleStep(app.stepi)
-        app.stepi = (app.stepi+1) % 16
+        app.stepi = (app.stepi+1) % 16 # %16 for beat wraparound
 
 def prettyPrint(L):
     print()

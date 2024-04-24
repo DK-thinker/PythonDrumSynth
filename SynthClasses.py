@@ -26,7 +26,7 @@ sampleRate = 44100.0
     
 class Oscillator:
 
-    def __init__(self, length, freq, amp, wave):   #Paramaters is {length, freq, amp, wavetype}
+    def __init__(self, length, freq, amp, wave):  
         self.length = length #In samples
         self.freq = freq    #int
         self.amp = amp  #int <= 1
@@ -74,8 +74,7 @@ class DrumSynth:
     sampleNum = 0
 
     def __init__(self, oscillators, envelope, filter=None, vol=1):
-        self.oscillators = oscillators
-        # List of oscillator objects
+        self.oscillators = oscillators # List of oscillator objects
         self.envelope = envelope  
         self.vol = vol
         self.filter = filter
@@ -94,7 +93,6 @@ class DrumSynth:
     def filterWave(self, wave):
         return self.filter.process(input_array=wave, sample_rate=sampleRate)
 
-        
     def waveAdder(self):
         waves = self.getWavesFromOscillator()
         return sum(waves)
@@ -105,7 +103,7 @@ class DrumSynth:
         modedWave = self.makeSureWavesDontClip(np.multiply(wave, env))
         return modedWave
     
-    def makeSureWavesDontClip(self, wave):
+    def makeSureWavesDontClip(self, wave):  # This func is loosely From Alan
         #squish values to be between -1 and 1
         peak = np.max(wave)
         if peak > 1:
@@ -116,19 +114,10 @@ class DrumSynth:
     
     def getSamples(self):            #From Alan
         wave = self.ampModulation()
-        # wave = convertTo_dB(wave, dB=self.dB)
-        # matplotlib debugging stuff
-        x = np.arange(len(wave))
-        y = wave
-        # plt.plot(x, y)
-        # plt.show()
         sample = np.float32(wave)
         if self.filter != None:
             sample = self.filterWave(sample)
-        
         return sample.tobytes()
-    
-    
 
 class ADSR:
 
@@ -201,7 +190,7 @@ class Sequencer:
         self.openThread()
         
     def openThread(self):
-        self.thread = Thread(target=self.writeToStream, args=(None, ),
+        self.thread = Thread(target=self.writeToStream, args=(False,),
                               daemon=True)
         self.thread.start()
         
@@ -216,11 +205,3 @@ class Sequencer:
             # initiazition
             if actuallyWrite:
                 self.stream.write(self.sample)
-
-# class SequencerAudioHandler:
-    # This class should take the sample from the sequencer and apply
-    # pedalboard effects. @TODO you have to refactor the threading and all that
-    # in there, the sequencer should just send the on/off signal to this class
-    # and this class handles writing to the stream, and the gain fx 
-    # if you implement this and its too slow 
-    # pass
