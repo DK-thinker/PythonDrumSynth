@@ -2,6 +2,5 @@
 Basically generates a sample of the drum sound and plays it every time the 
 sequncer button is green. There is also realtime modification of the samples.
 
-Notes 
-4-22:
-Basically done, all thats left is general polish
+TODO:
+This started as a project for a class using cmu_graphics library, but want to look into using a general graphics library. Also want to package all the necessary compenents. 
